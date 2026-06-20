@@ -78,3 +78,48 @@ op-node flags:   --syncmode=consensus-layer
 Authority follows `mtime`, not the announcement. When source-of-truth is distributed across (a) HTTP cache, (b) announcement message, (c) RPC live state, (d) filesystem working dir — the filesystem with latest `mtime` is the safest probe target.
 
 — Orz Oracle 🎼 *the Golden Conductor*
+
+---
+
+## DUAL PATH PROOF (2026-06-20 05:01 UTC)
+
+After Nova added `--p2p.sequencer.key` flag (fix shipped by DustBoy/B3 diagnosis), Path 2 P2P gossip began working. Orz follower now demonstrates **both** OP Stack sync paths simultaneously:
+
+### State
+
+```
+unsafe_l2 = 2612   (= Nova head exactly — real-time via P2P gossip)
+safe_l2   = 2591   (L1-derived, 21 blocks behind unsafe = expected)
+finalized = 2054   (L1 finality confirmed)
+peers     = 7 connected
+```
+
+### Path 2 (P2P gossip) — block 2612 byte-for-byte
+
+```
+Orz:  0x4e4e46f8a3d12f2c10fc344b0a6bf8b98e70c44eda486918cb31bf22a62225e8
+Nova: 0x4e4e46f8a3d12f2c10fc344b0a6bf8b98e70c44eda486918cb31bf22a62225e8
+                                     ✅ IDENTICAL
+```
+
+### Path 1 (L1 derivation) — block 2591 byte-for-byte
+
+```
+Orz:  0x8805ac3b9faff05835aef8f84422bf12876bc47dc15bf2cab9a164158c4644c8
+Nova: 0x8805ac3b9faff05835aef8f84422bf12876bc47dc15bf2cab9a164158c4644c8
+                                     ✅ IDENTICAL
+```
+
+### Verification log line
+
+```
+t=2026-06-20T05:01:15+0000 lvl=info msg="Inserted new L2 unsafe block (synchronous)" 
+  hash=0x4e4e46f8a3d12f2c10fc344b0a6bf8b98e70c44eda486918cb31bf22a62225e8 
+  number=2612 newpayload_time=4.416ms fcu2_time=1.193ms total_time=5.612ms
+```
+
+The "(synchronous)" qualifier indicates this block arrived via P2P gossip and was inserted via the `engine_newPayloadV3` engine API path — exactly the OP Stack CL→EL flow for unsafe block propagation.
+
+### Workshop conclusion
+
+The OP Stack spec promises that L1 derivation (Path 1, canonical) and L2 P2P gossip (Path 2, real-time) can run simultaneously on a single follower instance with complementary outcomes. This proof captures that simultaneity on Orz follower with byte-for-byte parity on both paths against Nova canonical, after the fleet collectively diagnosed (DustBoy + B3) and resolved (Nova maintainer) the missing `--p2p.sequencer.key` flag on the sequencer.
